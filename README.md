@@ -1,7 +1,6 @@
-# grist-widget-ee
+# template-builder-widget
 
-This repository contains custom widgets for [Grist](https://www.getgrist.com) that are licensed
-for Enterprise.
+This repository contains a custom widget for [Grist](https://www.getgrist.com).
 
 This is proprietary code; not open-source. No redistribution or modification without written
 permission.
