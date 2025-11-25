@@ -194,8 +194,8 @@ async function fetchToken() {
 async function fetchRecords(tableId, filters) {
   fetchRecordsPerRenderCount++;
   if (fetchRecordsPerRenderCount > fetchRecordsPerRenderLimit) {
-    throw new Error(`Too many fetches of referenced data. \
-      Consider using formulas instead to bring referenced data into the main table.`);
+    throw new Error(`Too many fetches of referenced data.\n` +
+      `Consider using formulas instead to bring referenced data into the main table.`);
   }
   const tokenResult = await getToken();
   const url = new URL(tokenResult.baseUrl + `/tables/${tableId}/records`);
@@ -310,6 +310,7 @@ const infoRecord = computed(() => {
   const rec = _lastFetchedRecord.value || (_lastFetchedRecord.value = fetchSelectedRecord(_lastRowId));
   if (!_infoFetching) {
     _infoFetching = true;
+    fetchRecordsPerRenderCount = 0;
     rec.then(r => asyncJson(r))
       .then(
         r => { _infoRecord.value = JSON.stringify(trimListsInJson(r), null, 2); },
@@ -381,7 +382,7 @@ ready(async function() {
   }
   grist.onOptions((options, settings) => {
     gristSettings = settings;
-    isReadonly.value = !['enterprise', 'saas'].includes(settings.deploymentType);
+    // isReadonly.value = !['enterprise', 'saas'].includes(settings.deploymentType);
     if (!serverOptions && !options?.html && options?.toolbar !== false) {
       tab.value = "edit";
       showInfo.value = true;
