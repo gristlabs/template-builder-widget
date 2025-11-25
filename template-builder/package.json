@@ -1,0 +1,22 @@
+{
+  "name": "@gristlabs/widget-template-builder",
+  "description": "Create templates for pages or catalogs from Grist data.",
+  "homePage": "https://github.com/gristlabs/grist-widget-ee",
+  "version": "0.0.1",
+  "grist": {
+    "name": "Template Builder",
+    "url": "https://gristlabs.github.io/grist-widget/template-builder/index.html",
+    "widgetId": "@gristlabs/template-builder",
+    "published": true,
+    "accessLevel": "read table",
+    "renderAfterReady": true,
+    "description": "Create templates for pages or catalogs from Grist data.",
+    "authors": [
+      {
+        "name": "Grist Labs",
+        "url": "https://github.com/gristlabs"
+      }
+    ],
+    "isGristLabsMaintained": "enterprise"
+  }
+}

@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <title>Template Builder</title>
+  <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <!-- moment uses a loader that conflicts with monaco-editor, but works if moment is included first. -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.30.1/moment.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/liquidjs/10.21.1/liquid.browser.min.js" integrity="sha512-d0alIbxiMUdiKNxO5Gd8E3L+CIXKb39FnhIdAztNRB4J4KWZWThtJYL2o3U55IiOLRlsq6iCBaHEtzh1cB2ODA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.26.1/min/vs/loader.min.js"></script>
+  <script type="module" src="index.js"></script>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+
+
+<body>
+  <div id="app">
+    <div class="topbar">
+      <div class="toolbar" v-show="showToolbar">
+        <div class="toolbar-group">
+          <!-- Toggle group -->
+          <div class="button-group">
+            <button class="button" :class="tab === 'edit' ? 'button-active' : 'button-inactive'"
+                    @click="tab = 'edit'">
+              Edit
+            </button>
+            <button class="button" :class="tab === 'preview' ? 'button-active' : 'button-inactive'"
+                    @click="tab = 'preview'">
+              Preview
+            </button>
+          </div>
+
+          <!-- Reload (only when out of sync) -->
+          <button class="button"
+            v-if="serverDiverged"
+            title="Server version changed. Click to load the latest."
+            @click="resetFromOptions">
+            ⚠️ Reload
+          </button>
+        </div>
+
+        <!-- Right: Hide button -->
+        <div class="toolbar-group">
+          <button class="button" @click="showInfo = true">Info</button>
+          <button class="button" @click="printIframe">Print</button>
+          <button class="button" @click="hideToolbar">Hide</button>
+        </div>
+      </div>
+      <div v-if="statusMessage && tab !== 'edit'"
+           class="status-bar" :title="statusMessage">
+        {{ statusMessage }}
+      </div>
+    </div>
+
+    <div class="drawer" v-show="!showToolbar">
+      <button class="expand-button"></button>
+      <div class="drawer-expand">
+        <button class="button" @click="printIframe">Print</button>
+        <button class="button" @click="hideToolbar(false)">Show</button>
+      </div>
+    </div>
+
+    <div id="editor" class="main-area" v-show="tab === 'edit'"></div>
+    <template v-if="tab === 'preview'">
+      <div class="main-area">
+        <template v-if="templateError">
+          <div class="errors-container">
+            <div v-for="err in [templateError]" :key="err.id" class="error-card">
+              <div class="error-title">{{ err.message }}</div>
+              <div class="error-meta">
+                Line {{ err.loc?.start.line }}, Column {{ err.loc?.start.column }}
+              </div>
+
+              <button @click="goToError(err)" class="error-button">
+                Go to error
+              </button>
+            </div>
+          </div>
+        </template>
+        <template v-else>
+          <iframe ref="userContent"></iframe>
+        </template>
+      </div>
+    </template>
+
+    <div class="modal-bg" v-if="isReadonly && (showInfo || tab === 'edit')" @click.self="dismissNotice">
+      <div class="floating-buttons" v-if="template !== ''">
+        <button class="button" title="Close info" @click="dismissNotice">
+          Close
+        </button>
+      </div>
+      <div class="modal info-text">
+        <p>Template Builder makes it easier to builder custom widgets. It is available on getgrist.com
+        and on self-hosted Grist Enterprise plans.
+
+        <p>In the open-source Grist version, Template Builder doesn't support building or editing, but
+        if you have an existing Template Builder widget imported with a document built in another
+        installation, it should show correctly.
+      </div>
+    </div>
+    <div class="modal-bg" v-else-if="showInfo" @click.self="showInfo = false">
+      <div class="floating-buttons">
+        <button class="button" title="Copy instructions to clipboard"
+           onclick="window.getSelection().selectAllChildren(document.querySelector('.copy-content'));
+                    document.execCommand('copy');">
+          Copy
+        </button>
+        <button class="button" title="Close info" @click="showInfo = false">
+          Close
+        </button>
+      </div>
+      <div class="modal info-text">
+        <p>Instructions for you, or to paste to AI of your choice.
+        <div class="copy-content">
+          <p>You have access to records of this form:
+          <p><pre class="info-record">{{ infoRecord }}</pre>
+
+          <p>You may use <a href="https://shopify.github.io/liquid/basics/introduction/" target="_blank">LiquidJS
+            template syntax</a>. Available variables are
+          <ul>
+            <li><code>record</code> if you need to show a page for a single record,</li>
+            <li><code>records</code> to show cards or similar for a list of records.</li>
+          </ul>
+
+          <p>In addition to regular <a href="https://liquidjs.com/filters/overview.html" target="_blank">filters</a>,
+          you have available:
+          <ul>
+            <li><code v-pre>{{ num | currency }}</code> Formats <code>num</code> as currency,
+              with optional params for currency and locale.</li>
+            <li><code v-pre>{{ date | formatDate }}</code> Formats <code>date</code> as a date,
+              with optional params for format and locale (format uses moment.js syntax).</li>
+            <li><code>isString</code>, <code>isArray</code> Filters to check value types.</li>
+          </ul>
+
+          <p>These global variables are available to override:
+          <ul>
+            <li><code v-pre>{% assign locale=... %}</code>: change the default locale for 'currency' and
+              'formatDate' filters (default: "en-US").</li>
+            <li><code v-pre>{% assign currency=... %}</code>: change the default for the 'currency' filter
+              (default: "USD").</li>
+            <li><code v-pre>{% assign dateFormat=... %}</code>: change the default moment.js format for
+              'formatDate' filter (default: "MMMM DD, YYYY").</li>
+          </ul>
+
+          <p>Note that LiquidJS is set to escape HTML by default.
+
+          <p>You may produce a full HTML page or just contents for its body.
+          You can include <code>&lt;style&gt;</code> and
+          <code>&lt;script&gt;</code> tags or import external stylesheets and scripts.
+        </div>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>
